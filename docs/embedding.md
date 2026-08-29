@@ -6,16 +6,20 @@ app (or calls `ActionRunner` in-process).
 
 ## Install
 
-Point a workspace / git dependency at this repo (the package stays `private` and runs as native
-TypeScript):
+Publish from this repo with Changesets (`npm run changeset` → `npm run version-packages` →
+`npm run release`), then depend on the published package:
 
 ```json
 {
   "dependencies": {
-    "@oomol-lab/open-connector": "workspace:*"
+    "@oomol-lab/open-connector": "^1.4.0"
   }
 }
 ```
+
+For local monorepo development you can still use a `workspace:*` or git dependency. The package
+ships TypeScript sources (Node 22+); consumers should run under the same native TS / type-stripping
+setup this repo uses.
 
 Import the embed surface:
 

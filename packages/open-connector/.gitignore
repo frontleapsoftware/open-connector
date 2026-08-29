@@ -1,0 +1,4 @@
+# Materialized by prepack during publish; development uses symlinks.
+/src/
+/migrations/
+*.tgz
