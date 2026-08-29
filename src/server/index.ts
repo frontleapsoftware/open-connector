@@ -62,9 +62,6 @@ const staticRoot = await resolveStaticRoot(builtRoot);
 if (databaseUrl && !encryptionKey) {
   throw new Error("OOMOL_CONNECT_ENCRYPTION_KEY is required when OOMOL_CONNECT_DATABASE_URL is set.");
 }
-if (databaseUrl && !redisUrl) {
-  throw new Error("OOMOL_CONNECT_REDIS_URL is required when OOMOL_CONNECT_DATABASE_URL is set.");
-}
 
 await mkdir(dataDir, { recursive: true });
 const catalog = await loadCatalog(undefined, {
@@ -177,8 +174,9 @@ async function createRuntimeStorage(input: CreateRuntimeStorageInput): Promise<R
         runLimit: input.runLimit,
       });
 
-  const shouldCache = Boolean(input.databaseUrl) || Boolean(input.redisUrl);
-  if (!shouldCache) {
+  // L1 cache is only enabled with Redis so multi-replica invalidation stays coherent.
+  // Postgres alone (no Redis) still works as a shared durable store without a local cache.
+  if (!input.redisUrl) {
     return {
       runtimeDatabase: inner,
       closeRuntime: async () => {

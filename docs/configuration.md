@@ -9,7 +9,7 @@ OpenConnector is configured with environment variables.
 | `OOMOL_CONNECT_ORIGIN`                   | `http://localhost:<PORT>`        | Public origin used for OAuth redirect URLs.                                                                                       |
 | `OOMOL_CONNECT_DATA_DIR`                 | `./data`                         | Directory containing `connect.sqlite`. Docker image sets `/app/data`.                                                             |
 | `OOMOL_CONNECT_DATABASE_URL`             | unset                            | Postgres URL for shared HA runtime state. When set, SQLite is not used.                                                           |
-| `OOMOL_CONNECT_REDIS_URL`                | unset                            | Redis URL for L1 cache invalidation. Required when `OOMOL_CONNECT_DATABASE_URL` is set.                                           |
+| `OOMOL_CONNECT_REDIS_URL`                | unset                            | Redis URL for L1 cache invalidation across replicas. Optional; recommended for multi-replica HA.                                  |
 | `OOMOL_CONNECT_CACHE_TTL_MS`             | `30000`                          | Soft TTL for the in-memory L1 cache.                                                                                              |
 | `OOMOL_CONNECT_CACHE_CHANNEL`            | `oomol-connect:cache-invalidate` | Redis pub/sub channel for cache invalidation topics.                                                                              |
 | `OOMOL_CONNECT_S3_BUCKET`                | unset                            | S3-compatible bucket for transit files. When unset, files stay under `OOMOL_CONNECT_DATA_DIR`.                                    |

@@ -14,19 +14,19 @@ Load balancer
 
 ## Required environment
 
-| Variable                                                                | Purpose                                                                                     |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `OOMOL_CONNECT_DATABASE_URL`                                            | Postgres connection URL. Enables the shared runtime store.                                  |
-| `OOMOL_CONNECT_ENCRYPTION_KEY`                                          | Required with Postgres. Encrypts credentials, OAuth config/state, and idempotent responses. |
-| `OOMOL_CONNECT_REDIS_URL`                                               | Required with Postgres. Cross-replica L1 cache invalidation.                                |
-| `OOMOL_CONNECT_S3_BUCKET`                                               | Shared transit-file bucket (recommended for HA).                                            |
-| `OOMOL_CONNECT_S3_ENDPOINT`                                             | Optional. Set for MinIO or other S3-compatible endpoints.                                   |
-| `OOMOL_CONNECT_S3_REGION`                                               | Optional. Defaults to the AWS SDK default.                                                  |
-| `OOMOL_CONNECT_S3_ACCESS_KEY_ID` / `OOMOL_CONNECT_S3_SECRET_ACCESS_KEY` | Bucket credentials.                                                                         |
-| `OOMOL_CONNECT_S3_FORCE_PATH_STYLE`                                     | Set `true` for MinIO-style path addressing.                                                 |
-| `OOMOL_CONNECT_CACHE_TTL_MS`                                            | Soft L1 TTL (default `30000`). Bounds staleness if pub/sub is delayed.                      |
-| `OOMOL_CONNECT_CACHE_CHANNEL`                                           | Redis channel (default `oomol-connect:cache-invalidate`).                                   |
-| `OOMOL_CONNECT_ORIGIN`                                                  | Public origin for OAuth redirects and transit download URLs.                                |
+| Variable                                                                | Purpose                                                                                           |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `OOMOL_CONNECT_DATABASE_URL`                                            | Postgres connection URL. Enables the shared runtime store.                                        |
+| `OOMOL_CONNECT_ENCRYPTION_KEY`                                          | Required with Postgres. Encrypts credentials, OAuth config/state, and idempotent responses.       |
+| `OOMOL_CONNECT_REDIS_URL`                                               | Optional. Enables in-memory L1 cache + cross-replica invalidation. Recommended for multi-replica. |
+| `OOMOL_CONNECT_S3_BUCKET`                                               | Shared transit-file bucket (recommended for HA).                                                  |
+| `OOMOL_CONNECT_S3_ENDPOINT`                                             | Optional. Set for MinIO or other S3-compatible endpoints.                                         |
+| `OOMOL_CONNECT_S3_REGION`                                               | Optional. Defaults to the AWS SDK default.                                                        |
+| `OOMOL_CONNECT_S3_ACCESS_KEY_ID` / `OOMOL_CONNECT_S3_SECRET_ACCESS_KEY` | Bucket credentials.                                                                               |
+| `OOMOL_CONNECT_S3_FORCE_PATH_STYLE`                                     | Set `true` for MinIO-style path addressing.                                                       |
+| `OOMOL_CONNECT_CACHE_TTL_MS`                                            | Soft L1 TTL (default `30000`). Bounds staleness if pub/sub is delayed.                            |
+| `OOMOL_CONNECT_CACHE_CHANNEL`                                           | Redis channel (default `oomol-connect:cache-invalidate`).                                         |
+| `OOMOL_CONNECT_ORIGIN`                                                  | Public origin for OAuth redirects and transit download URLs.                                      |
 
 Without `OOMOL_CONNECT_DATABASE_URL`, the Node runtime keeps the existing SQLite + local-files
 single-node behavior.
