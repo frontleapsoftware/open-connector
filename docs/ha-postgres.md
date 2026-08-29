@@ -55,3 +55,6 @@ connector service as needed once the shared backends are healthy.
   a full cache flush when Redis is configured.
 - Prefer vertical scale of a single machine only when still on SQLite volumes; with Postgres + S3 +
   Redis, horizontal replica count may be greater than one.
+
+When embedding OpenConnector inside a host app, transit files can use a Mastra workspace filesystem
+instead of S3 — see [embedding.md](embedding.md).

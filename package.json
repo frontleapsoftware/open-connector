@@ -6,6 +6,24 @@
     "web"
   ],
   "type": "module",
+  "exports": {
+    "./embed": "./src/embed.ts",
+    "./catalog-store": "./src/catalog-store.ts",
+    "./providers/provider-loader": "./src/providers/provider-loader.ts",
+    "./providers/registry": "./src/providers/registry.generated.ts",
+    "./server/connect-app": "./src/server/connect-app.ts",
+    "./server/actions/action-runner": "./src/server/actions/action-runner.ts",
+    "./server/files/transit-file-store": "./src/server/files/transit-file-store.ts",
+    "./server/files/transit-files": "./src/server/files/transit-files.ts",
+    "./server/files/s3-transit-files": "./src/server/files/s3-transit-files.ts",
+    "./server/files/workspace-transit-files": "./src/server/files/workspace-transit-files.ts",
+    "./server/secrets/secret-codec": "./src/server/secrets/secret-codec.ts",
+    "./server/storage/runtime-database": "./src/server/storage/runtime-database.ts",
+    "./server/storage/postgres-runtime-store": "./src/server/storage/postgres-runtime-store.ts",
+    "./server/storage/sqlite-runtime-store": "./src/server/storage/sqlite-runtime-store.ts",
+    "./server/storage/caching-runtime-database": "./src/server/storage/caching-runtime-database.ts",
+    "./server/storage/cache-invalidation-bus": "./src/server/storage/cache-invalidation-bus.ts"
+  },
   "scripts": {
     "postinstall": "node scripts/ensure-generated.ts",
     "dev": "node scripts/dev-local.ts",
