@@ -183,3 +183,7 @@ min_machines_running = 1
 Keep the machine count at one for the default SQLite deployment. Fly volumes are attached to
 individual machines, so horizontal scaling requires a separate shared storage design. For this
 repository's default Fly setup, prefer increasing the VM size before adding more machines.
+
+To run more than one machine, configure Postgres, Redis, and S3-compatible transit storage as
+described in [ha-postgres.md](ha-postgres.md), then remove the single-volume constraint from the
+deployment. Without those shared backends, stay at one machine.

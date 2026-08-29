@@ -57,7 +57,8 @@ HTTP/OpenAPI from custom clients, and the Web Console for administration and deb
 - Runtime controls for connection identity, scopes, runtime tokens, action allow/block policies,
   temporary file transit, and redacted run logs.
 - Deployment options for local Docker or Node.js, Fly.io with persistent SQLite storage,
-  Cloudflare Workers with D1/R2/Static Assets, and OOMOL's hosted runtime.
+  multi-replica Postgres + Redis + S3 ([docs/ha-postgres.md](docs/ha-postgres.md)), Cloudflare
+  Workers with D1/R2/Static Assets, and OOMOL's hosted runtime.
 
 ## Where It Fits
 

@@ -2,7 +2,6 @@ import type { RuntimeLogger } from "../../core/types.ts";
 import type { Pool } from "pg";
 
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 
 const migrationDirectory = new URL("../../../migrations/postgres/", import.meta.url);
 
@@ -20,16 +19,14 @@ export async function runPostgresMigrations(pool: Pool, logger?: RuntimeLogger):
   const applied = new Set(
     (await pool.query<{ id: string }>("select id from schema_migrations")).rows.map((row) => row.id),
   );
-  const files = (await readdir(migrationDirectory))
-    .filter((name) => name.endsWith(".sql"))
-    .sort((left, right) => left.localeCompare(right));
+  const files = (await readdir(migrationDirectory)).filter((name) => /^\d+_.*\.sql$/.test(name)).sort();
 
   for (const file of files) {
     if (applied.has(file)) {
       continue;
     }
 
-    const sql = await readFile(join(migrationDirectory.pathname, file), "utf8");
+    const sql = await readFile(new URL(file, migrationDirectory), "utf8");
     const client = await pool.connect();
     try {
       await client.query("begin");

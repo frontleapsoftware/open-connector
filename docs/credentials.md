@@ -1,8 +1,10 @@
 # Credentials And Local Storage
 
 The local Node runtime stores connections, OAuth client configuration, pending OAuth states, runtime
-tokens, recent run logs, and HTTP Action idempotency claims and responses in SQLite. The Cloudflare
-Workers runtime stores the same runtime records in D1 and temporary transit files in R2.
+tokens, recent run logs, and HTTP Action idempotency claims and responses in SQLite by default, or in
+PostgreSQL when `OOMOL_CONNECT_DATABASE_URL` is set. The Cloudflare Workers runtime stores the same
+runtime records in D1 and temporary transit files in R2. See [ha-postgres.md](ha-postgres.md) for the
+multi-replica Postgres + Redis + S3 layout.
 
 By default the database lives at:
 
