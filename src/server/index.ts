@@ -23,6 +23,8 @@ import { TransitFileService } from "./files/transit-files.ts";
 import { logger } from "./logger.ts";
 import { createSecretCodec } from "./secrets/secret-codec.ts";
 import { resolveServerAssets } from "./server-assets.ts";
+import { createCacheInvalidationBus } from "./storage/cache-invalidation-bus.ts";
+import { CachingRuntimeDatabase } from "./storage/caching-runtime-database.ts";
 import {
   createNodeRuntimeDatabase,
   migratePostgresRuntimeDatabase,
@@ -41,6 +43,9 @@ const runLimit = readPositiveIntegerEnv("OOMOL_CONNECT_RUN_LIMIT", DEFAULT_RUN_L
 const databaseUrl = optionalEnv("OOMOL_CONNECT_DATABASE_URL");
 const databasePoolMax = readPositiveIntegerEnv("OOMOL_CONNECT_DATABASE_POOL_MAX", 10);
 const databaseConnectTimeoutMs = readPositiveIntegerEnv("OOMOL_CONNECT_DATABASE_CONNECT_TIMEOUT_MS", 10_000);
+const redisUrl = optionalEnv("OOMOL_CONNECT_REDIS_URL");
+const cacheTtlMs = readPositiveIntegerEnv("OOMOL_CONNECT_CACHE_TTL_MS", 30_000);
+const cacheChannel = optionalEnv("OOMOL_CONNECT_CACHE_CHANNEL");
 
 // The standalone binary embeds migrations/postgresql, but the PostgreSQL startup validator refuses to serve until
 // they are applied and its error text points at `npm run runtime:migrate`, which a binary user does not have.
@@ -138,6 +143,26 @@ async function main(): Promise<void> {
         migrations: assets.migrations,
       });
 
+  // L1 cache is only enabled with Redis so multi-replica invalidation stays coherent.
+  // Postgres alone (no Redis) still works as a shared durable store without a local cache.
+  const cachedDatabase = redisUrl
+    ? await (async () => {
+        const bus = await createCacheInvalidationBus({
+          redisUrl,
+          channel: cacheChannel,
+          logger,
+        });
+        const cached = new CachingRuntimeDatabase(runtimeDatabase, {
+          bus,
+          ttlMs: cacheTtlMs,
+          logger,
+        });
+        await cached.start();
+        return cached;
+      })()
+    : undefined;
+  const activeDatabase = cachedDatabase ?? runtimeDatabase;
+
   try {
     const transitFiles = await createTransitFileService();
     const transitFileTempDir = join(dataDir, "tmp", "transit-files");
@@ -147,7 +172,7 @@ async function main(): Promise<void> {
     const { app, runtimeAuthConfigured } = await createConnectApp({
       catalog,
       providerLoader: new ProviderLoader(executorModules),
-      runtimeDatabase,
+      runtimeDatabase: activeDatabase,
       transitFiles,
       uploadTransitFile: createNodeTransitFileUpload({ transitFiles, tempDir: transitFileTempDir }),
       publicOrigin,
@@ -171,6 +196,9 @@ async function main(): Promise<void> {
         logger.info({ url: `http://${hostname}:${info.port}` }, "connect server listening");
         logger.info({ dataDir }, "runtime data directory");
         logger.info({ backend: databaseUrl ? "postgresql" : "sqlite" }, "runtime database ready");
+        if (redisUrl) {
+          logger.info({ ttlMs: cacheTtlMs }, "runtime L1 cache enabled (Redis invalidation)");
+        }
         if (!adminToken) {
           logger.warn("local admin authentication is disabled; set OOMOL_CONNECT_ADMIN_TOKEN to require bearer tokens");
         }
@@ -193,10 +221,20 @@ async function main(): Promise<void> {
     // A startup failure above closes the database in the catch. From here this chain owns it; a bind failure never
     // reaches it and ends the process through the server's unhandled 'error' event instead.
     waitForShutdown(server)
-      .finally(() => runtimeDatabase.close())
+      .finally(async () => {
+        if (cachedDatabase) {
+          await cachedDatabase.close();
+        } else {
+          await runtimeDatabase.close();
+        }
+      })
       .catch(reportFailure);
   } catch (error) {
-    await runtimeDatabase.close();
+    if (cachedDatabase) {
+      await cachedDatabase.close();
+    } else {
+      await runtimeDatabase.close();
+    }
     throw error;
   }
 }
