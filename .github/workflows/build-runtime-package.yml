@@ -1,54 +1,66 @@
 name: Build runtime package
 
-# Builds the headless embeddable package (`npm run build:runtime`), packs a
-# tarball, verifies it boots in a scratch consumer, and uploads the `.tgz` as a
-# workflow artifact. Does not publish to npm.
+# Builds the headless embeddable package (`npm run build:runtime`), verifies it,
+# uploads a `.tgz` artifact, and publishes it to GitHub Packages (not npmjs).
 #
-# Use this when integrating the runtime into another repo (for example a
-# Frontleap monorepo) before wiring a private registry publish:
+# Automatic: every push to `main` publishes
+#   @<owner>/open-connector@0.0.<run_number>
+# Manual / reusable: workflow_dispatch and workflow_call accept optional
+# `package_name` and `version` overrides.
 #
-#   Actions > Build runtime package > Run workflow
-#   → download the `headless-package` artifact
-#   → npm install ./oomol-lab-open-connector-*.tgz  (or your renamed name)
+# Install in another repo (e.g. Frontleap monorepo):
 #
-#   workflow_dispatch / workflow_call inputs:
-#     package_name — optional npm name written into the packed package.json
-#     version      — optional version (defaults to package.json / 0.0.0-development)
+#   # .npmrc
+#   @frontleapsoftware:registry=https://npm.pkg.github.com
+#   //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
+#
+#   npm install @frontleapsoftware/open-connector
+#
+# The package scope must match the GitHub owner (GitHub Packages requirement).
+# Default name is @${{ github.repository_owner }}/open-connector.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       package_name:
-        description: "Optional package name for the tarball, e.g. @frontleap/open-connector"
+        description: "Optional package name (must use @<github-owner>/...). Empty = @<owner>/open-connector"
         required: false
         type: string
         default: ""
       version:
-        description: "Optional package version, e.g. 0.1.0. Leave empty to keep package.json."
+        description: "Optional version. Empty = 0.0.<run_number>"
         required: false
         type: string
         default: ""
   workflow_call:
     inputs:
       package_name:
-        description: "Optional package name for the tarball"
+        description: "Optional package name (must use @<github-owner>/...)"
         required: false
         type: string
         default: ""
       version:
-        description: "Optional package version"
+        description: "Optional version. Empty = 0.0.<run_number>"
         required: false
         type: string
         default: ""
     outputs:
       artifact_name:
         description: "Name of the uploaded tarball artifact"
-        value: headless-package
+        value: ${{ jobs.package.outputs.artifact_name }}
+      package_name:
+        description: "Published package name"
+        value: ${{ jobs.package.outputs.package_name }}
+      package_version:
+        description: "Published package version"
+        value: ${{ jobs.package.outputs.package_version }}
 
 permissions:
   contents: read
 
 concurrency:
-  group: build-runtime-package-${{ github.workflow }}-${{ github.ref }}-${{ inputs.package_name || 'default' }}-${{ inputs.version || 'dev' }}
+  group: build-runtime-package-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -56,6 +68,11 @@ jobs:
     name: Build and verify package
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      artifact_name: headless-package
+      package_name: ${{ steps.meta.outputs.package_name }}
+      package_version: ${{ steps.meta.outputs.package_version }}
+      tarball_name: ${{ steps.meta.outputs.tarball_name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -68,22 +85,42 @@ jobs:
 
       - run: npm ci
 
-      - name: Set package name
-        if: inputs.package_name != ''
+      - name: Resolve package name and version
+        id: meta
         env:
-          PACKAGE_NAME: ${{ inputs.package_name }}
-        run: npm pkg set "name=${PACKAGE_NAME}"
-
-      - name: Set package version
-        if: inputs.version != ''
-        env:
-          PACKAGE_VERSION: ${{ inputs.version }}
-        run: npm pkg set "version=${PACKAGE_VERSION}"
+          INPUT_PACKAGE_NAME: ${{ inputs.package_name || '' }}
+          INPUT_VERSION: ${{ inputs.version || '' }}
+          OWNER: ${{ github.repository_owner }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          default_name="@${OWNER}/open-connector"
+          name="${INPUT_PACKAGE_NAME:-$default_name}"
+          version="${INPUT_VERSION:-0.0.${RUN_NUMBER}}"
+          case "$name" in
+            "@${OWNER}/"*) ;;
+            *)
+              echo "::error::package_name must be scoped to @${OWNER}/ (GitHub Packages). Got: ${name}"
+              exit 1
+              ;;
+          esac
+          npm pkg set "name=${name}"
+          npm pkg set "version=${version}"
+          # Safe filename fragment for logs (scope slash → dash).
+          tarball_stem=$(node -p 'JSON.parse(require("fs").readFileSync("package.json","utf8")).name.replace(/^@/,"").replace("/","-")')
+          echo "package_name=${name}" >> "$GITHUB_OUTPUT"
+          echo "package_version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tarball_name=${tarball_stem}-${version}.tgz" >> "$GITHUB_OUTPUT"
+          echo "Resolved ${name}@${version}"
 
       - run: npm run build:runtime
 
-      - name: Set package repository metadata
-        run: npm pkg set --prefix dist/package repository.type=git "repository.url=git+https://github.com/${GITHUB_REPOSITORY}.git"
+      - name: Set package repository and publishConfig
+        run: |
+          npm pkg set --prefix dist/package \
+            repository.type=git \
+            "repository.url=git+https://github.com/${GITHUB_REPOSITORY}.git" \
+            "publishConfig.registry=https://npm.pkg.github.com"
 
       - name: Pack
         run: |
@@ -92,9 +129,9 @@ jobs:
           ls -la dist/release
 
       - name: Verify installation and startup
+        env:
+          CONNECTOR_PACKAGE_NAME: ${{ steps.meta.outputs.package_name }}
         run: |
-          CONNECTOR_PACKAGE_NAME=$(node -p 'require("./dist/package/package.json").name')
-          export CONNECTOR_PACKAGE_NAME
           npm install --prefix "$RUNNER_TEMP/consumer" --no-audit --no-fund "$PWD"/dist/release/*.tgz
           cd "$RUNNER_TEMP/consumer"
           node --input-type=module <<'JS'
@@ -120,3 +157,40 @@ jobs:
           path: dist/release/*.tgz
           if-no-files-found: error
           retention-days: 14
+
+  publish:
+    name: Publish to GitHub Packages
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          registry-url: https://npm.pkg.github.com
+          scope: "@${{ github.repository_owner }}"
+          package-manager-cache: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: headless-package
+          path: dist/release
+
+      - name: Publish (skip if version already exists)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_NAME: ${{ needs.package.outputs.package_name }}
+          PACKAGE_VERSION: ${{ needs.package.outputs.package_version }}
+        run: |
+          set -euo pipefail
+          tarball=$(ls dist/release/*.tgz)
+          spec="${PACKAGE_NAME}@${PACKAGE_VERSION}"
+          if npm view "$spec" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
+            echo "Skipping ${spec}: already on GitHub Packages."
+            exit 0
+          fi
+          npm publish "$tarball" --registry=https://npm.pkg.github.com
+          echo "Published ${spec} to GitHub Packages."
